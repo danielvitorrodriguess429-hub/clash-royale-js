@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Clash Royale JS - Batalha Real</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(145deg, #1a2a1f 0%, #0e1a0c 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Poppins', system-ui, -apple-system, sans-serif;
+        }
+
+        #game-container {
+            width: 380px;
+            height: 700px;
+            background: #2b5e2b;
+            border-radius: 32px;
+            border: 4px solid #c9a87b;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.5), inset 0 1px 3px rgba(255,255,255,0.2);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Campo de batalha */
+        #board {
+            flex: 1;
+            position: relative;
+            background: #4c8b3c;
+            background-image: radial-gradient(circle at 25% 40%, rgba(90,130,50,0.6) 2%, transparent 2.5%);
+            background-size: 28px 28px;
+            cursor: crosshair;
+            overflow: hidden;
+        }
+
+        .half {
+            position: absolute;
+            width: 100%;
+            height: 50%;
+            pointer-events: none;
+        }
+
+        #enemy-half {
+            top: 0;
+            background: radial-gradient(ellipse at top, rgba(180, 60, 60, 0.2), transparent);
+        }
+
+        #player-half {
+            bottom: 0;
+            background: radial-gradient(ellipse at bottom, rgba(50, 100, 200, 0.2), transparent);
+        }
+
+        #river {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 42px;
+            background: #2c7cb6;
+            transform: translateY(-50%);
+            z-index: 1;
+            box-shadow: inset 0 3px 8px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+            border-top: 2px solid #6fc3df;
+            border-bottom: 2px solid #1a4f73;
+        }
+
+        .bridge {
+            position: absolute;
+            top: 50%;
+            width: 58px;
+            height: 68px;
+            background: #b97f44;
+            transform: translateY(-50%);
+            z-index: 2;
+            border-radius: 12px 12px 6px 6px;
+            box-shadow: 0 4px 0 #5a3a1f;
+            border-left: 3px solid #e7b874;
+            border-right: 3px solid #8b5a2b;
+        }
+
+        #bridge-left {
+            left: 55px;
+        }
+
+        #bridge-right {
+            right: 55px;
+        }
+
+        /* Entidades */
+        .entity {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: left 0.03s linear, top 0.03s linear;
+            filter: drop-shadow(0 4px 4px rgba(0,0,0,0.3));
+            pointer-events: none;
+        }
+
+        .entity .emoji {
+            font-size: 32px;
+            text-shadow: 0 2px 2px black;
+        }
+
+        .tower .emoji {
+            font-size: 40px;
+        }
+
+        .king .emoji {
+            font-size: 52px;
+        }
+
+        .health-bg {
+            width: 44px;
+            height: 7px;
+            background: #2c2c2c;
+            border-radius: 8px;
+            margin-top: 4px;
+            overflow: hidden;
+            border: 1px solid #1a1a1a;
+        }
+
+        .health-fill {
+            height: 100%;
+            width: 100%;
+            background: #3eff6e;
+            transition: width 0.1s ease;
+        }
+
+        .enemy .health-fill {
+            background: #ff4d4d;
+        }
+
+        /* UI */
+        #ui {
+            background: #1e1b1a;
+            padding: 8px 6px 10px;
+            border-top: 3px solid #f3b33d;
+            box-shadow: 0 -5px 0 #0a0a0a;
+        }
+
+        #cards {
+            display: flex;
+            justify-content: space-evenly;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .card {
+            flex: 1;
+            max-width: 70px;
+            background: #f7e9cd;
+            border-radius: 16px;
+            padding: 8px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.1s;
+            border: 2px solid #ab8e54;
+            box-shadow: 0 5px 0 #7a5a2e;
+            position: relative;
+        }
+
+        .card.selected {
+            transform: scale(0.96);
+            background: #ffefb9;
+            border-color: #ffcd48;
+            box-shadow: 0 1px 0 #ffaa22;
+        }
+
+        .card.disabled {
+            opacity: 0.5;
+            filter: grayscale(0.3);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .card .cost {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            background: #ec1f46;
+            color: white;
+            font-weight: bold;
+            border-radius: 20px;
+            padding: 2px 6px;
+            font-size: 12px;
+            border: 1px solid gold;
+        }
+
+        .card .card-emoji {
+            font-size: 34px;
+        }
+
+        .card .card-name {
+            font-size: 10px;
+            font-weight: bold;
+            color: #2c2b26;
+        }
+
+        #elixir-container {
+            background: #0e0c0b;
+            border-radius: 40px;
+            height: 28px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #d4af37;
+        }
+
+        #elixir-bar {
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, #f8599b, #ff2d75);
+            transition: width 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            border-radius: 40px;
+        }
+
+        #elixir-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            line-height: 28px;
+            color: white;
+            text-shadow: 0 1px 0 #4a001a;
+        }
+
+        #message-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(5px);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            z-index: 200;
+            font-family: monospace;
+        }
+
+        .msg-text {
+            color: gold;
+            font-size: 38px;
+            font-weight: bold;
+            text-shadow: 0 4px 0 #6b2e00;
+            letter-spacing: 2px;
+        }
+
+        .restart-btn {
+            background: #ffbb44;
+            border: none;
+            font-size: 20px;
+            padding: 8px 24px;
+            border-radius: 60px;
+            font-weight: bold;
+            color: #2a2000;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #946f2c;
+        }
+    </style>
+</head>
+<body>
+<div id="game-container">
+    <div id="board">
+        <div id="enemy-half" class="half"></div>
+        <div id="player-half" class="half"></div>
+        <div id="river"></div>
+        <div id="bridge-left" class="bridge"></div>
+        <div id="bridge-right" class="bridge"></div>
+    </div>
+    <div id="ui">
+        <div id="cards"></div>
+        <div id="elixir-container">
+            <div id="elixir-bar"></div>
+            <div id="elixir-text">5 / 10</div>
+        </div>
+    </div>
+    <div id="message-overlay">
+        <div class="msg-text" id="game-message">VITÓRIA!</div>
+        <button class="restart-btn" id="restart-button">⚔️ NOVA BATALHA ⚔️</button>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ------------------- CONFIGURAÇÕES ------------------
+        const BOARD_W = 380;
+        const BOARD_H = 540;    // altura útil do campo (sem UI)
+        const RIVER_Y = 270;     // linha central (rio)
+        const BRIDGE_LEFT_X = 70;
+        const BRIDGE_RIGHT_X = BOARD_W - 70;
+        const BRIDGE_Y = RIVER_Y;
+
+        // Constantes de jogo
+        const TOWER_HP = 1200;
+        const KING_HP = 2400;
+        const ELIXIR_MAX = 10;
+        const START_ELIXIR = 5;
+
+        // Deck de cartas
+        const DECK = [
+            { id: 'knight', name: 'Cavaleiro', emoji: '⚔️🗡️', cost: 3, hp: 520, dmg: 58, speed: 1.45, range: 32, attackCd: 900, type: 'melee', buildingTarget: false },
+            { id: 'archers', name: 'Arqueiras', emoji: '🏹🏹', cost: 3, hp: 210, dmg: 42, speed: 1.6, range: 130, attackCd: 950, type: 'ranged', buildingTarget: false },
+            { id: 'giant', name: 'Gigante', emoji: '👹💪', cost: 5, hp: 1450, dmg: 85, speed: 0.95, range: 35, attackCd: 1200, type: 'melee', buildingTarget: true },
+            { id: 'fireball', name: 'Bola de Fogo', emoji: '🔥💥', cost: 4, spell: true, dmg: 230, range: 95 }
+        ];
+
+        // ------------------- ESTADO GLOBAL ------------------
+        let entities = [];          // todas entidades vivas
+        let nextId = 1;
+        let gameActive = true;
+        let winner = null;          // 'player' ou 'enemy'
+        
+        // Recursos
+        let playerElixir = START_ELIXIR;
+        let enemyElixir = START_ELIXIR;
+        
+        let selectedCard = null;
+        
+        // timers
+        let elixirInterval;
+        let aiInterval;
+        let animationId;
+        
+        let lastTimestamp = 0;
+        
+        // DOM elements
+        const boardEl = document.getElementById('board');
+        const cardsContainer = document.getElementById('cards');
+        const elixirBar = document.getElementById('elixir-bar');
+        const elixirText = document.getElementById('elixir-text');
+        const messageOverlay = document.getElementById('message-overlay');
+        const gameMessageSpan = document.getElementById('game-message');
+        
+        // ------------------- FUNÇÕES AUXILIARES -------------
+        function distance(x1,y1,x2,y2){
+            return Math.hypot(x2-x1, y2-y1);
+        }
+        
+        // Atualiza barra de elixir do jogador
+        function updateElixirUI(){
+            let percent = (playerElixir / ELIXIR_MAX) * 100;
+            elixirBar.style.width = `${percent}%`;
+            elixirText.innerText = `${Math.floor(playerElixir)} / ${ELIXIR_MAX}`;
+            renderCards();
+        }
+        
+        // renderiza botões de cartas
+        function renderCards(){
+            cardsContainer.innerHTML = '';
+            for(let card of DECK){
+                const cardDiv = document.createElement('div');
+                cardDiv.className = `card ${(playerElixir < card.cost || !gameActive) ? 'disabled' : ''} ${(selectedCard === card) ? 'selected' : ''}`;
+                cardDiv.innerHTML = `
+                    <div class="cost">${card.cost}</div>
+                    <div class="card-emoji">${card.emoji}</div>
+                    <div class="card-name">${card.name}</div>
+                `;
+                cardDiv.onclick = (e) => {
+                    e.stopPropagation();
+                    if(!gameActive) return;
+                    if(playerElixir >= card.cost){
+                        selectedCard = selectedCard === card ? null : card;
+                        renderCards();
+                    } else {
+                        selectedCard = null;
+                        renderCards();
+                    }
+                };
+                cardsContainer.appendChild(cardDiv);
+            }
+        }
+        
+        // Cria elementos visuais e entidade no mundo
+        function addEntity(data){
+            const entity = {
+                id: nextId++,
+                ...data,
+                hp: data.maxHp,
+                lastAttackTime: 0,
+                crossingMode: false,
+                bridgeTargetX: null
+            };
+            
+            const div = document.createElement('div');
+            div.className = `entity ${entity.team} ${entity.isTower ? 'tower' : ''} ${entity.isKing ? 'king' : ''}`;
+            div.id = `e-${entity.id}`;
+            div.innerHTML = `
+                <div class="emoji">${entity.emoji}</div>
+                <div class="health-bg"><div class="health-fill" id="hpfill-${entity.id}"></div></div>
+            `;
+            boardEl.appendChild(div);
+            entity.element = div;
+            entity.updateHealthBar = () => {
+                const fill = document.getElementById(`hpfill-${entity.id}`);
+                if(fill){
+                    let perc = Math.max(0, (entity.hp / entity.maxHp) * 100);
+                    fill.style.width = `${perc}%`;
+                }
+            };
+            entity.updateHealthBar();
+            updateEntityPosition(entity);
+            entities.push(entity);
+            return entity;
+        }
+        
+        function updateEntityPosition(e){
+            if(e.element){
+                e.element.style.left = `${e.x}px`;
+                e.element.style.top = `${e.y}px`;
+            }
+        }
+        
+        // remover entidade morta
+        function removeEntity(entity){
+            if(entity.element) entity.element.remove();
+            const index = entities.indexOf(entity);
+            if(index !== -1) entities.splice(index,1);
+        }
+        
+        // dano e morte
+        function damageEntity(target, amount){
+            if(!gameActive) return;
+            if(target.hp <= 0) return;
+            target.hp = Math.max(0, target.hp - amount);
+            target.updateHealthBar();
+            
+            if(target.hp <= 0){
+                // Verifica se é rei/torre importante para game over
+                if(target.isKing){
+                    if(target.team === 'player'){
+                        gameOver('enemy');
+                    } else if(target.team === 'enemy'){
+                        gameOver('player');
+                    }
+                }
+                removeEntity(target);
+            }
+        }
+        
+        // fim de jogo
+        function gameOver(winnerTeam){
+            if(!gameActive) return;
+            gameActive = false;
+            winner = winnerTeam;
+            if(winnerTeam === 'player'){
+                gameMessageSpan.innerText = '🏆 VITÓRIA! 🏆';
+            } else {
+                gameMessageSpan.innerText = '💀 DERROTA 💀';
+            }
+            messageOverlay.style.display = 'flex';
+            if(elixirInterval) clearInterval(elixirInterval);
+            if(aiInterval) clearInterval(aiInterval);
+            if(animationId) cancelAnimationFrame(animationId);
+        }
+        
+        // Construir torres e reis
+        function buildStructures(){
+            // Torres inimigas
+            addEntity({ isTower: true, team: 'enemy', x: 75, y: 110, maxHp: TOWER_HP, hp: TOWER_HP, emoji: '🏰', range: 115, dmg: 28, attackCdMs: 800, isKing: false });
+            addEntity({ isTower: true, team: 'enemy', x: BOARD_W-75, y: 110, maxHp: TOWER_HP, hp: TOWER_HP, emoji: '🏰', range: 115, dmg: 28, attackCdMs: 800, isKing: false });
+            addEntity({ isTower: true, isKing: true, team: 'enemy', x: BOARD_W/2, y: 48, maxHp: KING_HP, hp: KING_HP, emoji: '👑', range: 100, dmg: 34, attackCdMs: 750, isKing: true });
+            // Torres jogador
+            addEntity({ isTower: true, team: 'player', x: 75, y: BOARD_H-115, maxHp: TOWER_HP, hp: TOWER_HP, emoji: '🏰', range: 115, dmg: 28, attackCdMs: 800, isKing: false });
+            addEntity({ isTower: true, team: 'player', x: BOARD_W-75, y: BOARD_H-115, maxHp: TOWER_HP, hp: TOWER_HP, emoji: '🏰', range: 115, dmg: 28, attackCdMs: 800, isKing: false });
+            addEntity({ isTower: true, isKing: true, team: 'player', x: BOARD_W/2, y: BOARD_H-48, maxHp: KING_HP, hp: KING_HP, emoji: '👑', range: 100, dmg: 34, attackCdMs: 750, isKing: true });
+        }
+        
+        // spawn de tropa
+        function spawnTroop(card, x, y, team){
+            if(!gameActive) return null;
+            // clamp pos
+            x = Math.min(BOARD_W-20, Math.max(20, x));
+            y = Math.min(BOARD_H-20, Math.max(20, y));
+            // se for time player, só no campo inferior
+            if(team === 'player' && y > RIVER_Y-15 === false) y = RIVER_Y+25;
+            if(team === 'enemy' && y < RIVER_Y+15 === false) y = RIVER_Y-25;
+            
+            return addEntity({
+                team: team,
+                x: x, y: y,
+                maxHp: card.hp,
+                hp: card.hp,
+                emoji: card.emoji,
+                dmg: card.dmg,
+                speed: card.speed,
+                range: card.range,
+                attackCdMs: card.attackCd,
+                type: card.type,
+                buildingTarget: card.buildingTarget || false,
+                isTower: false,
+                isKing: false,
+                lastAttackTime: 0,
+                crossingMode: false
+            });
+        }
+        
+        // magia
+        function castSpell(card, x, y, team){
+            if(!gameActive) return;
+            const spellDmg = card.dmg;
+            const radius = card.range;
+            // efeito visual
+            const impact = document.createElement('div');
+            impact.innerText = '💥🔥';
+            impact.style.position = 'absolute';
+            impact.style.left = `${x}px`;
+            impact.style.top = `${y}px`;
+            impact.style.fontSize = '46px';
+            impact.style.transform = 'translate(-50%, -50%)';
+            impact.style.zIndex = 999;
+            impact.style.pointerEvents = 'none';
+            boardEl.appendChild(impact);
+            setTimeout(()=>impact.remove(), 400);
+            
+            // dano em inimigos
+            for(let i=0; i<entities.length; i++){
+                const e = entities[i];
+                if(e.team !== team && distance(x,y, e.x, e.y) <= radius){
+                    damageEntity(e, spellDmg);
+                }
+            }
+        }
+        
+        // Lógica de alvo para cada entidade
+        function findBestTarget(attacker){
+            let best = null;
+            let bestDist = Infinity;
+            for(let other of entities){
+                if(other.team === attacker.team) continue;
+                if(other.hp <= 0) continue;
+                // tropas com buildingTarget só miram torres/rei
+                if(attacker.buildingTarget && !(other.isTower || other.isKing)) continue;
+                const dist = distance(attacker.x, attacker.y, other.x, other.y);
+                if(dist < bestDist){
+                    bestDist = dist;
+                    best = other;
+                }
+            }
+            return best;
+        }
+        
+        // Movimentação com pontes (sistema de waypoint bridge)
+        function moveEntityWithBridge(entity, target){
+            if(!target) return false;
+            
+            const fromSide = entity.y < RIVER_Y ? 'top' : 'bottom';
+            const toSide = target.y < RIVER_Y ? 'top' : 'bottom';
+            const needCross = (fromSide !== toSide);
+            
+            // modo travessia ativo
+            if(entity.crossingMode && entity.bridgeTargetX !== null){
+                const targetBridgeX = entity.bridgeTargetX;
+                const bridgePoint = { x: targetBridgeX, y: BRIDGE_Y };
+                const distToBridge = distance(entity.x, entity.y, bridgePoint.x, bridgePoint.y);
+                if(distToBridge < 8){
+                    // chegou na ponte
+                    entity.crossingMode = false;
+                    entity.bridgeTargetX = null;
+                } else {
+                    const angle = Math.atan2(bridgePoint.y - entity.y, bridgePoint.x - entity.x);
+                    entity.x += Math.cos(angle) * entity.speed;
+                    entity.y += Math.sin(angle) * entity.speed;
+                    clampPosition(entity);
+                    updateEntityPosition(entity);
+                    return true;
+                }
+            }
+            
+            if(needCross && !entity.crossingMode){
+                // escolher ponte mais próxima
+                const distLeft = Math.abs(entity.x - BRIDGE_LEFT_X);
+                const distRight = Math.abs(entity.x - BRIDGE_RIGHT_X);
+                const chosenBridgeX = distLeft <= distRight ? BRIDGE_LEFT_X : BRIDGE_RIGHT_X;
+                entity.crossingMode = true;
+                entity.bridgeTargetX = chosenBridgeX;
+                return true;
+            }
+            
+            // movimento normal em direção ao alvo
+            const angle = Math.atan2(target.y - entity.y, target.x - entity.x);
+            entity.x += Math.cos(angle) * entity.speed;
+            entity.y += Math.sin(angle) * entity.speed;
+            clampPosition(entity);
+            updateEntityPosition(entity);
+            return true;
+        }
+        
+        function clampPosition(e){
+            e.x = Math.min(BOARD_W-12, Math.max(12, e.x));
+            e.y = Math.min(BOARD_H-15, Math.max(15, e.y));
+        }
+        
+        // Ataque baseado em timestamp (ms)
+        function tryAttack(attacker, target, now){
+            if(!target || target.hp <= 0) return false;
+            const distToTarget = distance(attacker.x, attacker.y, target.x, target.y);
+            if(distToTarget <= attacker.range){
+                if(now - attacker.lastAttackTime >= attacker.attackCdMs){
+                    attacker.lastAttackTime = now;
+                    damageEntity(target, attacker.dmg);
+                    // efeito visual rápido
+                    const atkFx = document.createElement('div');
+                    atkFx.innerText = '⚡';
+                    atkFx.style.position='absolute';
+                    atkFx.style.left=`${attacker.x}px`;
+                    atkFx.style.top=`${attacker.y-10}px`;
+                    atkFx.style.fontSize='22px';
+                    atkFx.style.opacity='0.7';
+                    atkFx.style.pointerEvents='none';
+                    boardEl.appendChild(atkFx);
+                    setTimeout(()=>atkFx.remove(), 150);
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // loop principal de combate + movimento
+        let lastFrameTime = 0;
+        function gameLoop(now){
+            if(!gameActive) return;
+            requestAnimationFrame(gameLoop);
+            if(!now) now = performance.now();
+            
+            for(let i=0; i<entities.length; i++){
+                const ent = entities[i];
+                if(ent.hp <= 0) continue;
+                if(ent.isTower) continue; // torres não se movem
+                
+                const target = findBestTarget(ent);
+                if(target){
+                    // tenta atacar primeiro
+                    const didAttack = tryAttack(ent, target, now);
+                    if(!didAttack){
+                        // move em direção ao alvo (com ponte)
+                        moveEntityWithBridge(ent, target);
+                    }
+                } else {
+                    // sem alvo, fica parado
+                }
+            }
+            
+            // torres atacam (todas entidades com isTower)
+            for(let t of entities){
+                if(t.isTower && t.hp > 0){
+                    const enemyTarget = findBestTarget(t);
+                    if(enemyTarget){
+                        tryAttack(t, enemyTarget, now);
+                    }
+                }
+            }
+        }
+        
+        // Evento de clique no tabuleiro
+        function onBoardClick(e){
+            if(!gameActive) return;
+            if(!selectedCard) return;
+            const rect = boardEl.getBoundingClientRect();
+            let x = (e.clientX - rect.left) * (BOARD_W / rect.width);
+            let y = (e.clientY - rect.top) * (BOARD_H / rect.height);
+            x = Math.min(BOARD_W-15, Math.max(15, x));
+            y = Math.min(BOARD_H-15, Math.max(15, y));
+            
+            const card = selectedCard;
+            if(playerElixir < card.cost) {
+                selectedCard = null;
+                renderCards();
+                return;
+            }
+            
+            if(card.spell){
+                // magia pode ser em qualquer lugar
+                playerElixir -= card.cost;
+                updateElixirUI();
+                castSpell(card, x, y, 'player');
+                selectedCard = null;
+                renderCards();
+            } else {
+                // tropa somente no campo do jogador
+                if(y < RIVER_Y){
+                    // feedback visual
+                    const msg = document.createElement('div');
+                    msg.innerText = '❌ Coloque no seu campo!';
+                    msg.style.position='absolute'; msg.style.left='50%'; msg.style.top='40%';
+                    msg.style.background='black'; msg.style.color='red'; msg.style.padding='4px'; msg.style.borderRadius='12px';
+                    msg.style.fontSize='12px'; msg.style.zIndex=999;
+                    boardEl.appendChild(msg);
+                    setTimeout(()=>msg.remove(), 800);
+                    return;
+                }
+                if(playerElixir >= card.cost){
+                    playerElixir -= card.cost;
+                    updateElixirUI();
+                    spawnTroop(card, x, y, 'player');
+                    selectedCard = null;
+                    renderCards();
+                } else {
+                    selectedCard = null;
+                    renderCards();
+                }
+            }
+        }
+        
+        // IA inimiga com elixir próprio e spawns
+        function aiDecision(){
+            if(!gameActive) return;
+            // Geração de elixir pra IA (mesma taxa)
+            if(enemyElixir < ELIXIR_MAX) enemyElixir = Math.min(ELIXIR_MAX, enemyElixir + 0.5);
+            // escolher carta aleatória não magica
+            const troops = DECK.filter(c => !c.spell);
+            if(troops.length === 0) return;
+            const available = troops.filter(c => enemyElixir >= c.cost);
+            if(available.length === 0) return;
+            const chosen = available[Math.floor(Math.random() * available.length)];
+            enemyElixir -= chosen.cost;
+            // spawn em posição aleatória do campo inimigo
+            const randX = 45 + Math.random() * (BOARD_W - 90);
+            const randY = 35 + Math.random() * 120;
+            spawnTroop(chosen, randX, randY, 'enemy');
+        }
+        
+        function generateElixirBoth(){
+            if(!gameActive) return;
+            if(playerElixir < ELIXIR_MAX) playerElixir = Math.min(ELIXIR_MAX, playerElixir + 0.5);
+            if(enemyElixir < ELIXIR_MAX) enemyElixir = Math.min(ELIXIR_MAX, enemyElixir + 0.5);
+            updateElixirUI();
+        }
+        
+        // Reiniciar jogo completamente
+        function restartGame(){
+            // limpar entidades e timers
+            for(let e of entities){
+                if(e.element) e.element.remove();
+            }
+            entities = [];
+            if(elixirInterval) clearInterval(elixirInterval);
+            if(aiInterval) clearInterval(aiInterval);
+            if(animationId) cancelAnimationFrame(animationId);
+            gameActive = true;
+            winner = null;
+            playerElixir = START_ELIXIR;
+            enemyElixir = START_ELIXIR;
+            selectedCard = null;
+            nextId = 1;
+            messageOverlay.style.display = 'none';
+            updateElixirUI();
+            // recriar torres
+            buildStructures();
+            renderCards();
+            // reiniciar loops
+            elixirInterval = setInterval(() => generateElixirBoth(), 1000);
+            aiInterval = setInterval(() => aiDecision(), 4200);
+            animationId = requestAnimationFrame(gameLoop);
+        }
+        
+        // inicialização completa
+        function init(){
+            buildStructures();
+            renderCards();
+            updateElixirUI();
+            boardEl.addEventListener('click', onBoardClick);
+            elixirInterval = setInterval(() => generateElixirBoth(), 1000);
+            aiInterval = setInterval(() => aiDecision(), 4200);
+            animationId = requestAnimationFrame(gameLoop);
+            const restartBtn = document.getElementById('restart-button');
+            restartBtn.addEventListener('click', () => {
+                restartGame();
+            });
+        }
+        
+        init();
+    })();
+</script>
+</body>
+</html>
